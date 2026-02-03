@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Google Maps Route Finder (New Places API)</title>
+  <title>Multi-Stop Route Planner (New Places API)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <style>
@@ -13,40 +13,49 @@
     }
 
     .container {
-      width: 100%;
-      max-width: 1000px;
+      max-width: 1100px;
       margin: 20px auto;
       background: #fff;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       overflow: hidden;
     }
 
     .controls {
       padding: 15px;
       display: flex;
+      flex-direction: column;
       gap: 10px;
-      flex-wrap: wrap;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
       align-items: center;
+      flex-wrap: wrap;
     }
 
     gmp-place-autocomplete {
       flex: 1;
-      min-width: 200px;
+      min-width: 250px;
     }
 
     button {
-      padding: 10px 20px;
-      font-size: 14px;
+      padding: 10px 16px;
       border: none;
       border-radius: 4px;
-      cursor: pointer;
       background: #4285F4;
       color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #6c757d;
     }
 
     button:hover {
-      background: #357ae8;
+      opacity: 0.9;
     }
 
     #map {
@@ -59,9 +68,26 @@
 
 <div class="container">
   <div class="controls">
-    <gmp-place-autocomplete id="fromPlace"></gmp-place-autocomplete>
-    <gmp-place-autocomplete id="toPlace"></gmp-place-autocomplete>
-    <button id="routeBtn">Show Route</button>
+
+    <div class="row">
+      <strong>Start Location</strong>
+    </div>
+
+    <div class="row">
+      <gmp-place-autocomplete id="startPlace"></gmp-place-autocomplete>
+    </div>
+
+    <div class="row">
+      <strong>Drop Locations</strong>
+    </div>
+
+    <div id="stops"></div>
+
+    <div class="row">
+      <button class="secondary" onclick="addStop()">+ Add Drop</button>
+      <button onclick="calculateRoute()">Show Optimized Route</button>
+    </div>
+
   </div>
 
   <div id="map"></div>
@@ -72,8 +98,8 @@
   let directionsService;
   let directionsRenderer;
 
-  let fromLocation = null;
-  let toLocation = null;
+  let startLocation = null;
+  let stopLocations = [];
 
   async function initMap() {
     map = new google.maps.Map(document.getElementById("map"), {
@@ -82,49 +108,73 @@
     });
 
     directionsService = new google.maps.DirectionsService();
-    directionsRenderer = new google.maps.DirectionsRenderer({ map });
-
-    const fromAutocomplete =
-      document.getElementById("fromPlace");
-    const toAutocomplete =
-      document.getElementById("toPlace");
-
-    fromAutocomplete.addEventListener("gmp-placeselect", (event) => {
-      const place = event.place;
-      if (!place.location) return;
-
-      fromLocation = place.location;
+    directionsRenderer = new google.maps.DirectionsRenderer({
+      map,
+      suppressMarkers: false,
     });
 
-    toAutocomplete.addEventListener("gmp-placeselect", (event) => {
-      const place = event.place;
+    const startInput = document.getElementById("startPlace");
+
+    startInput.addEventListener("gmp-placeselect", async (e) => {
+      const place = e.place;
+      await place.fetchFields({ fields: ["location"] });
+
+      if (!place.location) return;
+      startLocation = place.location;
+    });
+  }
+
+  function addStop() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "row";
+
+    const autocomplete = document.createElement("gmp-place-autocomplete");
+
+    wrapper.appendChild(autocomplete);
+    document.getElementById("stops").appendChild(wrapper);
+
+    const index = stopLocations.length;
+
+    stopLocations.push(null);
+
+    autocomplete.addEventListener("gmp-placeselect", async (e) => {
+      const place = e.place;
+      await place.fetchFields({ fields: ["location"] });
+
       if (!place.location) return;
 
-      toLocation = place.location;
+      stopLocations[index] = {
+        location: place.location,
+        stopover: true,
+      };
     });
-
-    document
-      .getElementById("routeBtn")
-      .addEventListener("click", calculateRoute);
   }
 
   function calculateRoute() {
-    if (!fromLocation || !toLocation) {
-      alert("Please select both locations from the suggestions");
+    const validStops = stopLocations.filter(s => s !== null);
+
+    if (!startLocation || validStops.length === 0) {
+      alert("Please select start and at least one drop location");
       return;
     }
 
     directionsService.route(
       {
-        origin: fromLocation,
-        destination: toLocation,
+        origin: startLocation,
+        destination: startLocation, // round trip (change if needed)
+        waypoints: validStops,
+        optimizeWaypoints: true,
         travelMode: google.maps.TravelMode.DRIVING,
+        drivingOptions: {
+          departureTime: new Date(),
+          trafficModel: "bestguess",
+        },
       },
       (result, status) => {
         if (status === "OK") {
           directionsRenderer.setDirections(result);
         } else {
-          alert("Could not find route: " + status);
+          alert("Route error: " + status);
         }
       }
     );

@@ -1,129 +1,140 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <title>Google Maps Route Finder</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <title>Google Maps Route Finder (New Places API)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f4f6f8;
-        }
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+    }
 
-        .container {
-            width: 100%;
-            max-width: 1000px;
-            margin: 20px auto;
-            background: #fff;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            border-radius: 8px;
-            overflow: hidden;
-        }
+    .container {
+      width: 100%;
+      max-width: 1000px;
+      margin: 20px auto;
+      background: #fff;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      overflow: hidden;
+    }
 
-        .controls {
-            padding: 15px;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
+    .controls {
+      padding: 15px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
 
-        .controls input {
-            flex: 1;
-            min-width: 200px;
-            padding: 10px;
-            font-size: 14px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
+    gmp-place-autocomplete {
+      flex: 1;
+      min-width: 200px;
+    }
 
-        .controls button {
-            padding: 10px 20px;
-            font-size: 14px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            background: #4285F4;
-            color: #fff;
-        }
+    button {
+      padding: 10px 20px;
+      font-size: 14px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background: #4285F4;
+      color: #fff;
+    }
 
-        .controls button:hover {
-            background: #357ae8;
-        }
+    button:hover {
+      background: #357ae8;
+    }
 
-        #map {
-            width: 100%;
-            height: 500px;
-        }
-    </style>
+    #map {
+      width: 100%;
+      height: 500px;
+    }
+  </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="controls">
-        <input id="from" type="text" placeholder="From location">
-        <input id="to" type="text" placeholder="To location">
-        <button onclick="calculateRoute()">Show Route</button>
-    </div>
+  <div class="controls">
+    <gmp-place-autocomplete id="fromPlace"></gmp-place-autocomplete>
+    <gmp-place-autocomplete id="toPlace"></gmp-place-autocomplete>
+    <button id="routeBtn">Show Route</button>
+  </div>
 
-    <div id="map"></div>
+  <div id="map"></div>
 </div>
 
 <script>
-    let map;
-    let directionsService;
-    let directionsRenderer;
+  let map;
+  let directionsService;
+  let directionsRenderer;
 
-    function initMap() {
-        map = new google.maps.Map(document.getElementById("map"), {
-            center: { lat: 20.5937, lng: 78.9629 }, // India center
-            zoom: 5
-        });
+  let fromLocation = null;
+  let toLocation = null;
 
-        directionsService = new google.maps.DirectionsService();
-        directionsRenderer = new google.maps.DirectionsRenderer({
-            map: map
-        });
+  async function initMap() {
+    map = new google.maps.Map(document.getElementById("map"), {
+      center: { lat: 20.5937, lng: 78.9629 },
+      zoom: 5,
+    });
 
-        // Autocomplete for inputs
-        const fromInput = document.getElementById("from");
-        const toInput = document.getElementById("to");
+    directionsService = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({ map });
 
-        new google.maps.places.Autocomplete(fromInput);
-        new google.maps.places.Autocomplete(toInput);
+    const fromAutocomplete =
+      document.getElementById("fromPlace");
+    const toAutocomplete =
+      document.getElementById("toPlace");
+
+    fromAutocomplete.addEventListener("gmp-placeselect", (event) => {
+      const place = event.place;
+      if (!place.location) return;
+
+      fromLocation = place.location;
+    });
+
+    toAutocomplete.addEventListener("gmp-placeselect", (event) => {
+      const place = event.place;
+      if (!place.location) return;
+
+      toLocation = place.location;
+    });
+
+    document
+      .getElementById("routeBtn")
+      .addEventListener("click", calculateRoute);
+  }
+
+  function calculateRoute() {
+    if (!fromLocation || !toLocation) {
+      alert("Please select both locations from the suggestions");
+      return;
     }
 
-    function calculateRoute() {
-        const from = document.getElementById("from").value;
-        const to = document.getElementById("to").value;
-
-        if (!from || !to) {
-            alert("Please enter both locations");
-            return;
+    directionsService.route(
+      {
+        origin: fromLocation,
+        destination: toLocation,
+        travelMode: google.maps.TravelMode.DRIVING,
+      },
+      (result, status) => {
+        if (status === "OK") {
+          directionsRenderer.setDirections(result);
+        } else {
+          alert("Could not find route: " + status);
         }
-
-        const request = {
-            origin: from,
-            destination: to,
-            travelMode: google.maps.TravelMode.DRIVING
-        };
-
-        directionsService.route(request, function(result, status) {
-            if (status === "OK") {
-                directionsRenderer.setDirections(result);
-            } else {
-                alert("Could not find route: " + status);
-            }
-        });
-    }
+      }
+    );
+  }
 </script>
 
-<!-- Google Maps API -->
 <script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQnn5OdkVBTSt-xfaA6qqJC69bUHOqg1Q&libraries=places&callback=initMap"
-    async
-    defer
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQnn5OdkVBTSt-xfaA6qqJC69bUHOqg1Q&callback=initMap&libraries=maps,places&v=beta"
+  async
+  defer
 ></script>
 
 </body>

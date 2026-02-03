@@ -125,60 +125,68 @@
   }
 
   function addStop() {
-    const wrapper = document.createElement("div");
-    wrapper.className = "row";
+  const wrapper = document.createElement("div");
+  wrapper.className = "row";
 
-    const autocomplete = document.createElement("gmp-place-autocomplete");
+  const autocomplete = document.createElement("gmp-place-autocomplete");
 
-    wrapper.appendChild(autocomplete);
-    document.getElementById("stops").appendChild(wrapper);
+  wrapper.appendChild(autocomplete);
+  document.getElementById("stops").appendChild(wrapper);
 
-    const index = stopLocations.length;
+  autocomplete._location = null; // attach location directly
 
-    stopLocations.push(null);
+  autocomplete.addEventListener("gmp-placeselect", async (e) => {
+    const place = e.place;
+    await place.fetchFields({ fields: ["location"] });
 
-    autocomplete.addEventListener("gmp-placeselect", async (e) => {
-      const place = e.place;
-      await place.fetchFields({ fields: ["location"] });
+    if (!place.location) return;
 
-      if (!place.location) return;
+    autocomplete._location = {
+      location: place.location,
+      stopover: true,
+    };
+  });
+}
 
-      stopLocations[index] = {
-        location: place.location,
-        stopover: true,
-      };
-    });
-  }
 
   function calculateRoute() {
-    const validStops = stopLocations.filter(s => s !== null);
+  const stopInputs = document.querySelectorAll("#stops gmp-place-autocomplete");
 
-    if (!startLocation || validStops.length === 0) {
-      alert("Please select start and at least one drop location");
-      return;
+  const waypoints = [];
+
+  stopInputs.forEach(input => {
+    if (input._location) {
+      waypoints.push(input._location);
     }
+  });
 
-    directionsService.route(
-      {
-        origin: startLocation,
-        destination: startLocation, // round trip (change if needed)
-        waypoints: validStops,
-        optimizeWaypoints: true,
-        travelMode: google.maps.TravelMode.DRIVING,
-        drivingOptions: {
-          departureTime: new Date(),
-          trafficModel: "bestguess",
-        },
-      },
-      (result, status) => {
-        if (status === "OK") {
-          directionsRenderer.setDirections(result);
-        } else {
-          alert("Route error: " + status);
-        }
-      }
-    );
+  if (!startLocation || waypoints.length === 0) {
+    alert("Please select start and at least one drop location");
+    return;
   }
+
+  directionsService.route(
+    {
+      origin: startLocation,
+      destination: startLocation, // round trip
+      waypoints,
+      optimizeWaypoints: true,
+      travelMode: google.maps.TravelMode.DRIVING,
+      drivingOptions: {
+        departureTime: new Date(),
+        trafficModel: "bestguess",
+      },
+    },
+    (result, status) => {
+      if (status === "OK") {
+        directionsRenderer.setDirections(result);
+      } else {
+        alert("Route error: " + status);
+      }
+    }
+  );
+}
+
 </script>
 
 <script
